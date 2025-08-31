@@ -191,9 +191,6 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
     ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': config('ASIC_API_RATE_LIMIT', default='100', cast=str) + '/hour',
-    }
 }
 
 # ====================================
