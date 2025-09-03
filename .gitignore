@@ -267,6 +267,9 @@ tramp
 # Icon must end with two \r
 Icon
 
+# Text files
+*.txt
+
 # Thumbnails
 ._*
 
