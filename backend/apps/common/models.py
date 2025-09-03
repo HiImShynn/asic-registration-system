@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Annotated, Optional, List, Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, EmailStr
 from enum import Enum
-from .enums.asic_enums import StateTerritoryCodeType, COUNTRY, STREET_TYPES, AddressTypeType
+from .enums.asic_enums import StateTerritoryCodeType, COUNTRY, STREET_TYPES, AddressTypeType, EntityType
 
 class ASICBaseModel(BaseModel):
     """Base model with common config for all ASIC models"""
@@ -161,12 +161,37 @@ class AddressLodgeListModel(BaseModel):
                 raise ValueError(f"Address of type {tval} must have country 'Australia'.")
         return self
 
+## AbrEntity Types
+
+class Abn(ASICBaseModel):
+    """
+    Model for Australian Business Number (ABN).
+    """
+    abn: Annotated[str, Field(description="The Australian Business Number (ABN)", pattern=r"^\d{11}$")]
+
+class AbnReferenceNumber(ASICBaseModel):
+    """
+    Model for Australian Business Number (ABN) reference numbers.
+    """
+    referenceNumber: Annotated[str, Field(description="The reference number for the ABN", pattern=r"^\d{1,10}$")]
+
+class AbrEntity(ASICBaseModel):
+    """
+    Model for Australian Business Register (ABR) entities.
+    """
+    abn: Optional[Annotated[Abn, Field(description="The Australian Business Number (ABN)")]] = None
+    referenceNumber: Optional[Annotated[AbnReferenceNumber, Field(description="The reference number for the ABN")]] = None
+    entityName: Optional[Annotated[str, Field(description="The name of the entity")]] = None
+    entityType: Optional[Annotated[EntityType, Field(description="The type of the entity")]] = None
+    abnExemption: Optional[Annotated[bool, Field(description="Indicates if the entity is exempt from having an ABN as a Joint Venture")]] = False
+
 ## Individual Types
 
 class IndividualPhysicalAddressLodgeType(AddressLodgeBaseType, PhysicalAddressType):
     """
     Model for individual physical address lodge types.
     Must be type GC (residential address) and Australian address.
+    Postal delivery types are not allowed for individual addresses.
     """
     @field_validator('type')
     def validate_type(cls, v):
@@ -183,34 +208,81 @@ class IndividualPhysicalAddressLodgeType(AddressLodgeBaseType, PhysicalAddressTy
                 raise ValueError("country must be 'Australia' for individual addresses")
             return "Australia"
         return "Australia"  # Default to Australia if None
+    
+    @model_validator(mode="after")
+    def validate_no_postal_delivery(self):
+        if self.postalDeliveryType is not None:
+            raise ValueError("postalDeliveryType is not allowed for individual residential addresses (type GC)")
+        return self
 
 class IndividualUnstructuredAddressLodgeType(AddressLodgeBaseType, UnstructuredAddressType):
     """
     Model for individual unstructured address lodge types (for foreign addresses).
-    Must be type GC (residential address).
+    Must be type GC (residential address) and must NOT be Australian address.
     """
     @field_validator('type')
     def validate_type(cls, v):
         if v != "GC":
             raise ValueError("type must be 'GC' (Residential address business names)")
         return v
+    
+    @field_validator('country')
+    def validate_country(cls, v):
+        if v is not None:
+            v_stripped = v.strip().lower()
+            if v_stripped == "australia":
+                raise ValueError("Use IndividualPhysicalAddressLodgeType for Australian addresses")
+            if v_stripped not in [c.lower() for c in COUNTRY]:
+                raise ValueError("country must be one of the defined countries")
+            return v.title()  # Return in title case
+        # Country is required for unstructured addresses (foreign addresses)
+        raise ValueError("country is required for unstructured addresses")
 
 class IndividualLodgeType(ASICBaseModel):
-    """Complete individual lodge model for business name registration."""
+    """
+    Complete individual lodge model for business name registration.
+    
+    Business Rules:
+    - Individual section is conditional (mandatory only when holder type is individual)
+    - Address must be type "GC" (residential address)
+    - Australian addresses use structured format, foreign addresses use unstructured
+    - Email is optional and private data
+    """
     name: PersonNameLodgeType
     birthDetails: BirthDetailsLodgeType
-    address: IndividualPhysicalAddressLodgeType | IndividualUnstructuredAddressLodgeType
-    emailAddress: Optional[EmailStr] = None  # Made optional as per ASIC docs
+    address: Annotated[
+        IndividualPhysicalAddressLodgeType | IndividualUnstructuredAddressLodgeType, 
+        Field(union_mode='smart', description="Individual's residential address")
+    ]
+    emailAddress: Optional[EmailStr] = Field(None, description="Optional email address (private data)")
     
     @model_validator(mode="after")
     def validate_address_country_consistency(self):
-        # If Australian address, must use PhysicalAddressType
+        """Ensure address type matches country requirements"""
         if isinstance(self.address, IndividualPhysicalAddressLodgeType):
-            if self.address.country and self.address.country.lower() != "australia":
-                raise ValueError("PhysicalAddressType must be for Australian addresses only")
-        # If foreign address, must use UnstructuredAddressType
+            # Australian addresses must use structured format
+            if not self.address.country or self.address.country.lower() != "australia":
+                raise ValueError("IndividualPhysicalAddressLodgeType is only for Australian addresses")
         elif isinstance(self.address, IndividualUnstructuredAddressLodgeType):
-            if hasattr(self.address, 'country') and self.address.country and self.address.country.lower() == "australia":
-                raise ValueError("Use PhysicalAddressType for Australian addresses")
+            # Foreign addresses must use unstructured format
+            if not self.address.country or self.address.country.lower() == "australia":
+                raise ValueError("IndividualUnstructuredAddressLodgeType is only for foreign addresses")
         return self
-    
+
+## Organisation Types
+
+class OrganisationLodgeType(ASICBaseModel):
+    """
+    Model for organisation lodge types.
+    """
+    name: Annotated[str, Field(description="The organisation's name")]
+    acn: Optional[Annotated[str, Field(description="The Australian Company Number (ACN)", pattern=r"^\d{9}$")]] = None
+    emailAddress: Optional[EmailStr] = Field(None, description="Optional email address (private data)")
+
+## Associate Types
+class AssociateLodgeBaseType(ASICBaseModel):
+    """
+    Model for associate lodge types.
+    """
+    name: Annotated[str, Field(description="The associate's name")]
+    emailAddress: Optional[EmailStr] = Field(None, description="Optional email address (private data)")
