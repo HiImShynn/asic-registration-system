@@ -238,6 +238,7 @@ class IndividualUnstructuredAddressLodgeType(AddressLodgeBaseType, UnstructuredA
         # Country is required for unstructured addresses (foreign addresses)
         raise ValueError("country is required for unstructured addresses")
 
+### Choose "Individual" for sole traders
 class IndividualLodgeType(ASICBaseModel):
     """
     Complete individual lodge model for business name registration.
@@ -270,6 +271,7 @@ class IndividualLodgeType(ASICBaseModel):
         return self
 
 ## Organisation Types
+### Choose "Organisation" for companies, partnerships, trusts
 
 class OrganisationLodgeType(ASICBaseModel):
     """
@@ -280,9 +282,50 @@ class OrganisationLodgeType(ASICBaseModel):
     emailAddress: Optional[EmailStr] = Field(None, description="Optional email address (private data)")
 
 ## Associate Types
+
+### These types only required for: 
+#### Partnership (PTSH) -> must include partner details
+#### Joint Venture (JV) -> must include JV partner details
+#### Unincorporated Structure (USTR) -> must include trustee details
 class AssociateLodgeBaseType(ASICBaseModel):
     """
     Model for associate lodge types.
+    Maximum 500 associates allowed.
     """
-    name: Annotated[str, Field(description="The associate's name")]
-    emailAddress: Optional[EmailStr] = Field(None, description="Optional email address (private data)")
+    abrEntity: Optional[Annotated[AbrEntity, Field(description="The ABR entity details of the associate")]] = None
+    abn: Annotated[Abn, Field(description="The Australian Business Number (ABN) of the associate")]
+    # 1. Conditional as follows:
+    # 1) Mandatory if the holder is an unincorporated structure, a partnership or a joint venture.
+    # IF the entity type = PTSH (partnership) or JV (Joint venture): It must contain the partner’s details of the partnership or in a joint venture
+    # IF the entity type = USTR (unincorporated entities): It must contain the organisation representatives details for the entity (for example the trustees)
+    # 2) Not required if holder ‘Individual’ or ‘incorporated body’ (e.g. companies)
+
+class AssociateLodgeIndividualType(AssociateLodgeBaseType):
+    """
+    Model for individual associate lodge types.
+    """
+    individual: Annotated[IndividualLodgeType, Field(description="The individual's details")]
+
+class AssociateLodgeOrganisationType(AssociateLodgeBaseType):
+    """
+    Model for organisation associate lodge types.
+    """
+    organisation: Annotated[OrganisationLodgeType, Field(description="The organisation's details")]
+
+class PartnerAssociateLodgeType(BaseModel):
+    """
+    Model for partner associate lodge types.
+    Maximum 9 partner associates allowed.
+    """
+    associate: Annotated[
+        IndividualLodgeType | OrganisationLodgeType,
+        Field(union_mode='smart', description="The associate details, which can be an individual or organisation")
+    ]
+
+class SignatoryLodgeType(BaseModel):
+    """
+    Model for signatory lodge types.
+    """
+    name: Annotated[PersonNameType, Field(description="The signatory's name")]
+    dateSigned: Annotated[date, Field(description="The date the document was signed", default_factory=lambda: datetime.now().date())]
+    declaresTrueAndCorrect: Annotated[bool, Field(description="Declaration of truth and correctness")]
