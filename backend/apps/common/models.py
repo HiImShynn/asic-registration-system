@@ -249,8 +249,8 @@ class IndividualLodgeType(ASICBaseModel):
     - Australian addresses use structured format, foreign addresses use unstructured
     - Email is optional and private data
     """
-    name: PersonNameLodgeType
-    birthDetails: BirthDetailsLodgeType
+    name: Annotated[PersonNameLodgeType, Field(description="The individual's name")]
+    birthDetails: Annotated[BirthDetailsLodgeType, Field(description="The individual's birth details")]
     address: Annotated[
         IndividualPhysicalAddressLodgeType | IndividualUnstructuredAddressLodgeType, 
         Field(union_mode='smart', description="Individual's residential address")

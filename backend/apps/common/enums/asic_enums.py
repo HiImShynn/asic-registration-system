@@ -198,7 +198,6 @@ class StateTerritoryCodeType(str, Enum):
             for member in cls
         ]
 
-
 class ASICEntityType(str, Enum):
     """
     This represents the high-level entity classifications that map to OwnerType
