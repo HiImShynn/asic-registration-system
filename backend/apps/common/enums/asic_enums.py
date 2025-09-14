@@ -44,7 +44,7 @@ class SearchScope(str, Enum):
         ]
 
 class EntityType(str, Enum):
-    """ASIC organisation type codes"""
+    """ASIC organisation type codes (from ASIC documentation)"""
     PROPRIETARY_COMPANY = "APTY"
     PUBLIC_COMPANY = "APUB"
     PASSPORT_FUND_AU = "ARPA"
@@ -64,6 +64,12 @@ class EntityType(str, Enum):
     NAME_RESERVATION = "RSVN"
     SOLICITOR_CORPORATION = "SOLS"
     TRUST = "TRST"
+
+    # Add common entity types for business name registration
+    INDIVIDUAL = "Individual"
+    AUSTRALIAN_PRIVATE_COMPANY = "Australian Private Company"
+    AUSTRALIAN_PUBLIC_COMPANY = "Australian Public Company"
+    PARTNERSHIP = "Partnership"
 
     @classmethod
     def as_choices(cls) -> List[Dict[str, str]]:
@@ -173,19 +179,36 @@ class StateTerritoryCodeType(str, Enum):
 
     @classmethod
     def as_choices(cls) -> List[Dict[str, str]]:
+        descriptions = {
+            cls.AUSTRALIAN_CAPITAL_TERRITORY: "Australian Capital Territory",
+            cls.COCOS_KEELING_ISLANDS: "Cocos (Keeling) Islands",
+            cls.CHRISTMAS_ISLAND: "Christmas Island",
+            cls.JERVIS_BAY_TERRITORY: "Jervis Bay Territory",
+            cls.NEW_SOUTH_WALES: "New South Wales",
+            cls.NORFOLK_ISLAND: "Norfolk Island",
+            cls.NORTHERN_TERRITORY: "Northern Territory",
+            cls.QUEENSLAND: "Queensland",
+            cls.SOUTH_AUSTRALIA: "South Australia",
+            cls.TASMANIA: "Tasmania",
+            cls.VICTORIA: "Victoria",
+            cls.WESTERN_AUSTRALIA: "Western Australia"
+        }
         return [
-            {"value": member.value, "label": member.name.replace("_", " ").title()}
+            {"value": member.value, "label": descriptions[member]}
             for member in cls
         ]
 
+
 class ASICEntityType(str, Enum):
-    """ASIC entity type classifications"""
+    """
+    This represents the high-level entity classifications that map to OwnerType
+    """
     INCORPORATED_BODY = "IB"
     UNINCORPORATED = "USTR"
     INDIVIDUAL = "IND"
     PARTNERSHIP = "PTSH"
     JOINT_VENTURE = "JV"
-    CONDITIONAL = "COND"
+    CONDITIONAL = "COND" # For entities that need further classification
 
     @classmethod
     def as_choices(cls) -> List[Dict[str, str]]:
@@ -193,6 +216,71 @@ class ASICEntityType(str, Enum):
             {"value": member.value, "label": member.name.replace("_", " ").title()}
             for member in cls
         ]
+
+class OwnerType(str, Enum):
+    """
+    ASIC Owner Types for business name holders
+    
+    This is the CORE enum for the implementation patterns.
+    Maps directly to ASIC business rules.
+    """
+    IND = "IND"
+    IB = "IB"
+    PTSH = "PTSH"
+    USTR = "USTR"
+    JV = "JV"
+
+    @classmethod
+    def as_choices(cls) -> List[Dict[str, str]]:
+        """Django form choices"""
+        descriptions = {
+            cls.IND: "Individual (Sole Trader)",
+            cls.IB: "Incorporated Body (Company)",
+            cls.PTSH: "Partnership",
+            cls.USTR: "Unincorporated Entity (Trust/Association)",
+            cls.JV: "Joint Venture"
+        }
+        return [
+            {"value": member.value, "label": descriptions[member]}
+            for member in cls
+        ]
+    
+    def get_description(self) -> str:
+        """Get user-friendly description"""
+        descriptions = {
+            self.IND: "Individual sole trader operating their own business",
+            self.IB: "Incorporated company (Pty Ltd or Ltd) registered with ASIC",
+            self.PTSH: "Business partnership between multiple partners",
+            self.USTR: "Unincorporated entity like a trust, association, or cooperative",
+            self.JV: "Joint venture between multiple organizations for a specific project"
+        }
+        return descriptions[self]
+    
+    def get_use_cases(self) -> List[str]:
+        """Get common use cases for this owner type"""
+        use_cases = {
+            self.IND: [
+                "Freelance consultants", "Tradespersons", "Online sellers",
+                "Mobile service providers", "Creative professionals"
+            ],
+            self.IB: [
+                "Technology startups", "Retail companies", "Manufacturing businesses",
+                "Professional services firms", "Public companies"
+            ],
+            self.PTSH: [
+                "Law firms", "Medical practices", "Accounting firms",
+                "Architecture practices", "Consulting partnerships"
+            ],
+            self.USTR: [
+                "Family trusts", "Community associations", "Agricultural cooperatives",
+                "Sports clubs", "Investment trusts"
+            ],
+            self.JV: [
+                "Construction projects", "Mining ventures", "Infrastructure development",
+                "Research collaborations", "Technology partnerships"
+            ]
+        }
+        return use_cases[self]
 
 class ABREntityType(str, Enum):
     """ABR entity type codes"""
@@ -343,6 +431,57 @@ class ABREntityType(str, Enum):
     STRATA_TITLE = 'STR'
     STRATA_TITLE_TERRITORY = 'TCS'
     PUBLIC_TRADING_TRUST_TERRITORY = 'TCT'
+
+# =============================================================================
+# Payment and Form-related enums (for business name registration)
+# =============================================================================
+
+class PaymentMethodType(str, Enum):
+    """Payment method types for ASIC transactions"""
+    CREDIT_CARD = "CREDIT_CARD"
+    DIRECT_DEBIT = "DIRECT_DEBIT"
+    BANK_TRANSFER = "BANK_TRANSFER"
+
+    @classmethod
+    def as_choices(cls) -> List[Dict[str, str]]:
+        descriptions = {
+            cls.CREDIT_CARD: "Credit Card",
+            cls.DIRECT_DEBIT: "Direct Debit",
+            cls.BANK_TRANSFER: "Bank Transfer"
+        }
+        return [
+            {"value": member.value, "label": descriptions[member]}
+            for member in cls
+        ]
+
+class PhoneType(str, Enum):
+    """Phone types for contact information"""
+    BUSINESS = "BUSINESS"
+    MOBILE = "MOBILE"
+    HOME = "HOME"
+
+    @classmethod
+    def as_choices(cls) -> List[Dict[str, str]]:
+        return [
+            {"value": member.value, "label": member.name.title()}
+            for member in cls
+        ]
+
+class CapacityType(str, Enum):
+    """Signatory capacity types"""
+    DIRECTOR = "Director"
+    SOLE_TRADER = "Sole Trader"
+    PARTNER = "Partner"
+    TRUSTEE = "Trustee"
+    SECRETARY = "Secretary"
+    AUTHORIZED_REPRESENTATIVE = "Authorized Representative"
+
+    @classmethod
+    def as_choices(cls) -> List[Dict[str, str]]:
+        return [
+            {"value": member.value, "label": member.value}
+            for member in cls
+        ]
 
 # Constants
 STREET_TYPES = [
