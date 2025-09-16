@@ -45,7 +45,7 @@ class AssociateLodgeType(ASICBaseModel):
     """
     
     # Core associate info (ABR entity required for all associates)
-    abrEntity: Annotated[AbrEntity, Field(description="The ABR entity details of the associate")]
+    abrEntity: Optional[Annotated[AbrEntity, Field(description="The ABR entity details of the associate")]]
 
     # Associate details (Individual or Organisation, not both)
     individual: Optional[Annotated[IndividualLodgeType, Field(description="The individual's details")]] = None
@@ -94,7 +94,7 @@ class AssociateLodgeType(ASICBaseModel):
             if self.partnerAssociate:
                 raise ValueError("IND_ASSOC_NO_REPS: Individual associates cannot have organization representatives")
             
-            if not self.abrEntity.abn:
+            if not self.abrEntity or not self.abrEntity.abn:
                 raise ValueError("IND_ASSOC_ABN: Individual associates must have ABN")
         
         elif classification == "incorporated":
@@ -102,10 +102,10 @@ class AssociateLodgeType(ASICBaseModel):
             if self.partnerAssociate:
                 raise ValueError("INC_ASSOC_NO_REPS: Incorporated associates cannot have organization representatives")
             
-            if self.organisation and self.organisation.acn:
+            if not self.organisation or not self.organisation.acn:
                 raise ValueError("INC_ASSOC_ACN: Incorporated associates must have ACN")
             
-            if not self.abrEntity.abn:
+            if not self.abrEntity or not self.abrEntity.abn:
                 raise ValueError("INC_ASSOC_ABN: Incorporated associates must have ABN")
         
         elif classification == "unincorporated":
@@ -116,7 +116,7 @@ class AssociateLodgeType(ASICBaseModel):
             if self.organisation and self.organisation.acn:
                 raise ValueError("UNINC_ASSOC_NO_ACN: Unincorporated associates cannot have ACN")
             
-            if not self.abrEntity.abn:
+            if not self.abrEntity or not self.abrEntity.abn:
                 raise ValueError("UNINC_ASSOC_ABN: Unincorporated associates must have ABN")
             
             # Validate each representative
