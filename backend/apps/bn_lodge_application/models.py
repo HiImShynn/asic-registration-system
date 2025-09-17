@@ -215,8 +215,8 @@ class BusinessEntityLodgeType(ASICBaseModel):
                 raise ValueError("PTSH_ABR_REQUIRED: ABR entity information is required for partnerships")
             if not self.organisation:
                 raise ValueError("PTSH_ORGANISATION_REQUIRED: Partnership organisation details are required")
-            if not self.associate or len(self.associate) == 0:
-                raise ValueError("PTSH_PARTNERS_REQUIRED: Partnerships must have at least one partner")
+            if not self.associate or len(self.associate) < 2:
+                raise ValueError("PTSH_PARTNERS_REQUIRED: Partnerships must have at least 2 partners")
             if len(self.associate) > 9:
                 raise ValueError("PTSH_MAX_PARTNERS: Partnerships can have maximum 9 partners")
             if self.individual:
@@ -239,7 +239,19 @@ class BusinessEntityLodgeType(ASICBaseModel):
                 raise ValueError("USTR_TRUSTEES_REQUIRED: Trusts/associations must have at least one trustee or representative")
             if self.individual:
                 raise ValueError("USTR_NO_INDIVIDUAL: Trust/association applications use organisation details")
-        
+            if self.organisation.acn:
+                raise ValueError("USTR_NO_ACN: Trust/association organisation cannot have ACN")
+            for i, a in enumerate(self.associate or []):
+                if a.partnerAssociate:
+                    raise ValueError(
+                        f"USTR_NO_PARTNER_ASSOCIATES: partnerAssociate is not allowed for associate {i+1} in trusts/associations"
+                    )
+                # Corporate trustees (organisation associates) must have ACN
+                if a.organisation and not a.organisation.acn:
+                    raise ValueError(
+                        f"USTR_TRUSTEE_ORG_ACN: Organisation trustee {i+1} must have ACN"
+                    )
+
         # RULE SET 5: JV (Joint Venture) Validation - Enhanced
         elif self.ownerType == OwnerType.JV:
             if not self.organisation:
