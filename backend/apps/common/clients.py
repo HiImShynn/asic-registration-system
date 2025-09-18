@@ -118,19 +118,97 @@ class ASICSOAPClient:
             # Create Zeep transport with the authenticated session
             transport = Transport(session=self.session, timeout=180)
 
-            # Configure Zeep settings
-            settings = Settings(
-                strict=False,  # Be lenient with ASIC's WSDL variations
-                xml_huge_tree=True,  # Handle large responses
-                forbid_dtd=False,  # Allow DTD processing
-                forbid_entities=False  # Allow entity processing
-            )
+            # # Configure Zeep settings
+            # settings = Settings(
+            #     strict=False,  # Be lenient with ASIC's WSDL variations
+            #     xml_huge_tree=True,  # Handle large responses
+            #     forbid_dtd=False,  # Allow DTD processing
+            #     forbid_entities=False  # Allow entity processing
+            # )
 
             # Create the SOAP client
-            client = Client(wsdl=wsdl_url, transport=transport, settings=settings)
+            client = Client(wsdl=wsdl_url, transport=transport)
             logger.info(f"Created SOAP client for WSDL: {wsdl_url}")
             return client
         except Exception as e:
             logger.error(f"Failed to create SOAP client for WSDL {wsdl_url}: {e}")
             raise ASICAPIError(f"Failed to create SOAP client: {e}")
 
+    def _generate_message_reference(self) -> str:
+            """Generate a unique message reference"""
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            unique_id = str(uuid.uuid4()).replace("-", "")[:8]  # Shorten UUID for brevity
+            return f"MSG:{timestamp}-{unique_id}"
+    
+    def _create_business_document_header(self, header_class, additional_fields: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Create the complete businessDocumentHeader from your header classes
+        
+        Args:
+            header_class: One of your header classes (e.g., QueryAddressHeaders())
+            additional_fields: Optional additional header fields
+            
+        Returns:
+            Complete header dictionary ready for SOAP request
+        """
+        headers = header_class
+
+        # Convert to dict and add common fields
+        header_dict = headers.model_dump()
+        header_dict["messageReferenceNumber"] = self._generate_message_reference()
+
+        # Add any additional fields if provided
+        if additional_fields:
+            header_dict.update(additional_fields)
+        
+        logger.debug(f"Created businessDocumentHeader: {header_dict}")
+        return header_dict
+
+    def _handle_asic_response(self, response, operation_name: str) -> Dict[str, Any]:
+        """
+        Handle and parse ASIC SOAP responses, checking for errors
+        
+        Args:
+            response: The raw SOAP response
+            operation_name: The name of the operation for logging
+            
+        Returns:
+            Parsed response dictionary if successful
+            
+        Raises:
+            ASICAPIError if the response indicates an error
+        """
+        try:
+            # Check if response has error indicators
+            header = response.businessDocumentHeader if hasattr(response, 'businessDocumentHeader') else None
+            body = response.businessDocumentBody if hasattr(response, 'businessDocumentBody') else None
+
+            # Look for ASIC-specific error codes/messages
+            if header and hasattr(header, 'result'):
+                if hasattr(header.result, 'rejected') and header.result.rejected:
+                    error_msg = "Request was rejected by ASIC"
+                    if hasattr(header, 'messageEvents'):
+                        # Extract error details
+                        errors = []
+                        for event in header.messageEvents.messageEvent:
+                            errors.append(f"Error {event.errorCode}: {event.description}")
+                        error_msg += f" - {'; '.join(errors)}"
+                    raise ASICAPIError(error_msg)
+            
+            return {
+                "success": True,
+                "operation": operation_name,
+                "header": header,
+                "body": body,
+                "timestamp": datetime.now().isoformat()
+            }
+        except ASICAPIError:
+            raise
+        except Exception as e:
+            logger.error(f"Error processing {operation_name} response: {str(e)}")
+            raise ASICAPIError(f"Response processing failed: {str(e)}")
+
+    # ============================================================================================
+    # 1. Query Name Availability
+    # ============================================================================================
+    
