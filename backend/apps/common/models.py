@@ -24,9 +24,9 @@ class PersonNameLodgeType(PersonNameType):
 
 class PersonNameOptionalType(ASICBaseModel):
     """PersonNameOptionalType for searchNni variants"""
-    givenNames: Annotated[Optional[str], Field(description="The person's given names")]
+    givenNames: Optional[Annotated[str, Field(description="The person's given names")]]
     otherGivenNames: Optional[Annotated[str, Field(description="The person's other given names")]] = None
-    familyName: Annotated[Optional[str], Field(description="The person's family name")]
+    familyName: Optional[Annotated[str, Field(description="The person's family name")]]
 
 class PersonNameWithRoleType(PersonNameType):
     role: Annotated[str, Field(description="The person's role")]
